@@ -1,6 +1,10 @@
 # PCVR_ADB_Kiosk
 
-Automates Meta Quest Link mode and launches a dedicated PCVR app using ADB and Task Scheduler. Designed for institutional deployments, it handles headset state, app focus, and edge-case recovery.
+This repository contains automation and diagnostic tools developed for institutional PCVR deployments using Meta Quest and Pico headsets. Scripts were created and field-tested in the **VR lab of the Department of Biomedical Sciences at Colorado State University**, supporting large-scale, ceiling-mounted PCVR stations.
+
+The tools streamline headset state management, app launching, and remote diagnostics using ADB and Task Scheduler. They are shared openly to support similar deployments at other institutions.
+
+---
 
 ## Contents
 
@@ -48,15 +52,21 @@ Example path: `C:\platform-tools`
 
 2. Reboot the HMD
 
-3. From command prompt:
+3. From command prompt:  
+```bash
 C:\platform-tools\adb devices
+```
 
-If you see:
+If you see:    
+```bash
 xxxxxxxxx  unauthorized
+```
 
-Do the following **while the Task Scheduler task is NOT running**:
-C:\platform-tools\adb kill-server
+Do the following **while the Task Scheduler task is NOT running**:  
+```bash
+C:\platform-tools\adb kill-server  
 C:\platform-tools\adb start-server
+```
 
 4. On the HMD, choose:  
 **“Always allow from this computer”**
