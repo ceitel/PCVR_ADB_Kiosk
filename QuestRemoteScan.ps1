@@ -4,14 +4,27 @@ Collects Meta Quest 3 serial numbers and telemetry from multiple PCs using ADB a
 
 .DESCRIPTION
 This script is a companion to PCVR_Kiosk_Oculus.bat and PCVR_Kiosk_Pico.bat.
-It performs remote diagnostics across a list of computers, extracting headset and system metadata.
+It performs remote diagnostics across a list of computers, extracting headset and system metadata including UUID, Meta OS version, MAC address, randomized MAC status, SSID, Wi-Fi state, and firewall rule status.
+
+.DEVELOPMENT
+Developed for the VR Lab, Department of Biomedical Sciences, Colorado State University
+
+.AUTHOR
+Chad Eitel
+
+.VERSION
+Created: 2024-05-09
+Version: 1.0.0
+Last Updated: 2025-11-20
 
 .LICENSE
 Licensed under the GNU General Public License v3.0 (GPL-3.0)
 See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 
-.AUTHOR
-Chad Eitel
+.CHANGELOG
+2025-11-20: Added diff logging between scans and improved fallback logic for unreachable PCs
+2024-10-12: Added randomized MAC detection and SSID parsing
+2024-09-30: Initial version with remote ADB scan and CSV export
 #>
 
 # Define variables...
