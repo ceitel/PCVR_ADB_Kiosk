@@ -1,15 +1,16 @@
 @echo off
 REM -----------------------------------------
-REM Created by:       Chad Eitel  05/09/24
-REM Version:          0.9.0
-REM License:          GNU General Public License v3.0 (GPL-3.0)
+REM Developed for the VR Lab, Department of Biomedical Sciences, Colorado State University
+REM Author: Chad Eitel | License: GPL-3.0 | See README for details
+REM Created: 2024-05-09 | Version: 0.9.0 | Last Updated: 2024-05-09
+REM This script is licensed under the GNU General Public License v3.0 (GPL-3.0)
 REM See LICENSE file in the repository or https://www.gnu.org/licenses/gpl-3.0.html
 
-REM This script automates launching the Pico 4E streaming client and a dedicated PCVR app using ADB.
+REM Description:
+REM Automates launching the Pico 4E streaming client and a dedicated PCVR app using ADB.
 REM It is a variant of the Oculus-based PCVR_Kiosk_Oculus.bat script and may be less tested or feature-complete.
 REM Designed for institutional deployments (e.g., CSU's ceiling-mounted PCVR stations).
-REM Download SDK Platform-Tools for Windows and extract to a local path such as C:\platform-tools:
-REM https://developer.android.com/tools/releases/platform-tools
+REM Requires SDK Platform-Tools for Windows: https://developer.android.com/tools/releases/platform-tools
 REM -----------------------------------------
 
 REM ****begin variables****
@@ -120,4 +121,5 @@ goto waitThenLoop
 
 :waitThenLoop
 timeout /t 10
+
 goto start
