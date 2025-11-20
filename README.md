@@ -4,8 +4,12 @@ Automates Meta Quest Link mode and launches a dedicated PCVR app using ADB and T
 
 ## Contents
 
-- PCVR_Kiosk_Oculus.bat – Main automation script  
-- PCVR_Kiosk_Oculus.xml – Task Scheduler import file
+- `PCVR_Kiosk_Oculus.bat` – Main automation script for Meta Quest  
+- `PCVR_Kiosk_Oculus.xml` – Task Scheduler import file  
+- `PCVR_Kiosk_Pico.bat` – Variant script for Pico 4E HMDs  
+- `QuestRemoteScan.ps1` – Remote diagnostics and inventory tool for Meta Quest 3
+
+---
 
 ## Setup Instructions
 
@@ -20,7 +24,7 @@ Example path: `C:\platform-tools`
 - Make any adjustments to variables in the `.bat` file:
   - `adbPath`: Full path to `adb.exe`
   - `appExe`: Name of the PCVR app process
-  - `metaLinkExe`: Meta Link PC app name
+  - `metaLinkExe`: Meta Link PC app name (Oculus only)
   - `edgeExe`: Browser to close (optional)
   - `appPath`: Full path or UWP shell reference to the PCVR app
 
@@ -33,6 +37,8 @@ Example path: `C:\platform-tools`
   - **Triggers**: Confirm or adjust the user account and repetition interval  
   - **Actions**: Update the program path to match `[PathB]` where the `.bat` file resides
 
+---
+
 ## Oculus Authorization Notes
 
 **IMPORTANT:** Each HMD must be authorized with its dedicated PC.
@@ -43,18 +49,14 @@ Example path: `C:\platform-tools`
 2. Reboot the HMD
 
 3. From command prompt:
-```
 C:\platform-tools\adb devices
-```
+
 If you see:
-```
 xxxxxxxxx  unauthorized
-```
+
 Do the following **while the Task Scheduler task is NOT running**:
-```
 C:\platform-tools\adb kill-server
 C:\platform-tools\adb start-server
-```
 
 4. On the HMD, choose:  
 **“Always allow from this computer”**
@@ -65,20 +67,29 @@ For large-scale deployments, it’s ideal to have:
 - One person remoting into PCs to restart the ADB server
 - Another person physically authorizing each PC on the HMD
 
-## Adaptation Notes
+---
 
-To use this script for other PCVR apps or environments:
+## Pico Variant Notes
 
-- Change `appExe` and `appPath` to match your app’s executable or UWP reference  
-- Update `edgeExe` if you want to close a different browser to clear cached credentials  
-- The same scheduled task and script can be used across all PCs, as long as each machine has the required files in the same location and uses consistent app configuration  
-- Replace domain-specific usernames and paths in both `.bat` and `.xml` files
+`PCVR_Kiosk_Pico.bat` is a variant of the Oculus script adapted for Pico 4E headsets.  
+It uses Pico-specific streaming services and checks for SteamVR before launching the PCVR app.
 
-## Debugging Tips
+- Still under refinement and may lack some edge-case handling present in the Oculus script  
+- Licensed under GPL-3.0 and intended for institutional kiosk deployments
 
-- Add `timeout /t 2` after key commands to observe behavior during manual runs  
-- Use `echo` statements to verify device state, ADB status, and app launch conditions  
-- If Link mode fails to engage, check for Meta Horizon interference or USB instability
+---
+
+## QuestRemoteScan.ps1 – Remote Diagnostics Tool
+
+Collects Meta Quest 3 serial numbers and telemetry from multiple PCs using PowerShell remoting and ADB.  
+Outputs include UUID, Meta OS version, MAC address, randomized MAC status, SSID, Wi-Fi state, and firewall rule status.
+
+- Requires admin privileges and PowerShell remoting enabled  
+- Reads computer list from `AZH205Computers.txt`  
+- Saves results to timestamped CSV in `C:\AZH205Logs`  
+- Compares latest two scans and logs differences to `diff.log`
+
+---
 
 ## License
 
