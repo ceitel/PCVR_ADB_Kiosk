@@ -37,9 +37,10 @@ Automates Meta Quest Link mode and launches a dedicated PCVR app using ADB and T
    - Select “Import Task”  
    - Choose `PCVR_Kiosk_Oculus.xml`  
    - Modify:
-     - UserId: Replace CVMBSDOM\azh205admin with your Windows username  
-     - Command: Update the path to point to your `.bat` file  
-     - Triggers: Adjust logon behavior or repetition interval if needed
+     - **User Account**: In the “General” tab, update the “When running the task, use the following user account” field to match your Windows username. This ensures the task runs with the correct permissions.
+     - **Command**: In the “Actions” tab, update the path to point to your `.bat` file.
+     - **Triggers**: In the “Triggers” tab, adjust logon behavior or repetition interval if needed.
+
 
 ## Adaptation Notes
 
