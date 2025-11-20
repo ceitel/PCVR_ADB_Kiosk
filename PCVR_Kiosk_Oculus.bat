@@ -19,7 +19,7 @@ REM -----------------------------------------
 REM ****begin variables****
 
 REM the path of the adb.exe from the above extracted platform-tools. Example: C:\platform-tools\adb.exe
-SET "adbPath=C:\Users\Public\Documents\Perspectus\platform-tools\adb.exe"
+SET "adbPath=C:\platform-tools\adb.exe"
 
 REM the name of the dedicated PC VR app process. Example: bv.exe
 SET "appExe=bv.exe"
@@ -137,4 +137,5 @@ goto waitThenLoop
 
 :waitThenLoop
 timeout /t 5
+
 goto start
