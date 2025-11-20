@@ -1,19 +1,24 @@
 @echo off
 REM -----------------------------------------
-REM Created by:       Chad Eitel  05/09/24
-REM Version:          1.3.2
+REM Developed for the VR Lab, Department of Biomedical Sciences, Colorado State University
+REM Author: Chad Eitel | License: GPL-3.0 | See README for details
+REM Created: 2024-05-09 | Version: 1.3.2 | Last Updated: 2025-11-20
 REM This script is licensed under the GNU General Public License v3.0 (GPL-3.0)
 REM See LICENSE file in the repository or https://www.gnu.org/licenses/gpl-3.0.html
 
-REM updated 11/20/25 CE - Fixed issue where Meta Horizon would launch after Link mode and steal focus from Meta OS, preventing headset from entering Link mode normally and requiring manual USB replug. Also added device sleep to start of script for easier debugging.
-REM updated 09/11/25 - Increased startup settle time from 10s to 60s.
-REM updated 10/24/24 CE - Fixed edge case where a PC reboot while the HMD was awake but idle would cause PVR to launch in 2D mode. Added check to ensure OculusClient.exe is running before launching PVR.
-REM updated 10/02/24 CE - Updated appPath/hash for PVR 1.8.377 (hash: 5r2c0dmngbwzj)
+REM Change Log:
+REM - 2025-11-20 CE: Fixed issue where Meta Horizon would launch after Link mode and steal focus from Meta OS,
+REM                  preventing headset from entering Link mode normally and requiring manual USB replug.
+REM                  Also added device sleep to start of script for easier debugging.
+REM - 2025-09-11: Increased startup settle time from 10s to 60s.
+REM - 2024-10-24 CE: Fixed edge case where a PC reboot while the HMD was awake but idle would cause PVR to launch in 2D mode.
+REM                  Added check to ensure OculusClient.exe is running before launching PVR.
+REM - 2024-10-02 CE: Updated appPath/hash for PVR 1.8.377 (hash: 5r2c0dmngbwzj)
 
+REM Description:
 REM Automates launching Meta Quest Link mode and a dedicated PCVR app using ADB and Task Scheduler.
 REM Designed for unattended VR deployments in institutional environments.
-REM Download SDK Platform-Tools for Windows and extract to a local path such as C:\platform-tools:
-REM https://developer.android.com/tools/releases/platform-tools
+REM Requires SDK Platform-Tools for Windows: https://developer.android.com/tools/releases/platform-tools
 REM -----------------------------------------
 
 REM ****begin variables****
