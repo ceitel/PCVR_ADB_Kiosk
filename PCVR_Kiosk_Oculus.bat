@@ -2,7 +2,7 @@
 REM -----------------------------------------
 REM Developed for the VR Lab, Department of Biomedical Sciences, Colorado State University
 REM Author: Chad Eitel | License: GPL-3.0 | See README for details
-REM Created: 2024-05-09 | Version: 1.3.2 | Last Updated: 2025-11-20
+REM Created: 2024-05-09 | Version: 1.3.3 | Last Updated: 2025-11-20
 REM This script is licensed under the GNU General Public License v3.0 (GPL-3.0)
 REM See LICENSE file in the repository or https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -145,4 +145,5 @@ goto waitThenLoop
 timeout /t 5
 
 goto start
+
 
