@@ -7,6 +7,7 @@ REM This script is licensed under the GNU General Public License v3.0 (GPL-3.0)
 REM See LICENSE file in the repository or https://www.gnu.org/licenses/gpl-3.0.html
 
 REM Change Log:
+REM - 2025-12-08 CE: Fixed issue where Meta renamed OculusClient.exe to Client.exe, causing kiosk script to enter a loop
 REM - 2025-11-20 CE: Fixed issue where Meta Horizon would launch after Link mode and steal focus from Meta OS,
 REM                  preventing headset from entering Link mode normally and requiring manual USB replug.
 REM                  Also added device sleep to start of script for easier debugging.
@@ -30,7 +31,7 @@ REM the name of the dedicated PC VR app process. Example: bv.exe
 SET "appExe=bv.exe"
 
 REM the name of the Meta Link PC App:
-set "metaLinkExe=OculusClient.exe"
+set "metaLinkExe=Client.exe"
 
 REM the default web browser that we will close to clear cached credentials when device goes to sleep
 set "edgeExe=msedge.exe"
@@ -144,3 +145,4 @@ goto waitThenLoop
 timeout /t 5
 
 goto start
+
