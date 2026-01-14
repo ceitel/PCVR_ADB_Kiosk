@@ -1,496 +1,461 @@
 <#
 .SYNOPSIS
-Collects Meta Quest 3 serial numbers and telemetry from multiple PCs using ADB and PowerShell remoting.
+Collects Android‑based XR headset serial numbers and telemetry from multiple PCs using ADB and PowerShell remoting.
 
 .DESCRIPTION
-This script is a companion to PCVR_Kiosk_Oculus.bat and PCVR_Kiosk_Pico.bat.
-It performs remote diagnostics across a list of computers, extracting headset and system metadata including UUID, Meta OS version, MAC address, randomized MAC status, SSID, Wi-Fi state, and firewall rule status.
-
-.DEVELOPMENT
-Developed for the VR Lab, Department of Biomedical Sciences, Colorado State University
-
-.AUTHOR
-Chad Eitel
-
-.VERSION
-Created: 2024-05-09
-Version: 1.0.0
-Last Updated: 2025-11-20
+This script supports Meta Quest, Pico, Galaxy XR, Vive XR Elite, Lenovo VRX, and any Android‑based XR headset.
+It performs remote diagnostics across a list of computers, extracting headset and system metadata.
 
 .LICENSE
 Licensed under the GNU General Public License v3.0 (GPL-3.0)
-See LICENSE file or https://www.gnu.org/licenses/gpl-3.0.html
 
-.CHANGELOG
-2025-11-20: Added diff logging between scans and improved fallback logic for unreachable PCs
-2024-10-12: Added randomized MAC detection and SSID parsing
-2024-09-30: Initial version with remote ADB scan and CSV export
+.AUTHOR
+Chad Eitel
 #>
 
-# Define variables...
-# Configuration
-$outputDir = "C:\AZH205Logs"
-$computerListPath = "C:\AZH205Logs\AZH205AdbComputers.txt"
-$diffLogFilePath = "C:\AZH205Logs\diff.log"
-
-
-
-# Self-elevate the script if required
-if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')) {
-	Write-Host "Script requires admin privileges. Attempting to elevate..."
-	$CommandLine = "-File `"" + $MyInvocation.MyCommand.Path + "`" " + $Args
-	Start-Process -FilePath PowerShell.exe -Verb RunAs -ArgumentList $CommandLine
-	Exit
-}
-
-# Script to collect Meta Quest 3 serial numbers using ADB from multiple computers
 param(
-	[switch]$NoExit = $false
+    [switch]$NoExit = $false
 )
 
-# If script is double-clicked (no parameters passed), set NoExit to true
-if ($MyInvocation.Line -eq "") {
-	$NoExit = $true
-}
+################# BEGIN CONFIG #################
+$outputDir       = "C:\AZH205Logs"
+$pcListFile      = "AZH205AdbComputers.txt"
+$adbPath         = "C:\Users\Public\Documents\Perspectus\platform-tools\adb.exe"
 
+$computerListPath = Join-Path $PSScriptRoot $pcListFile
+$verboseLogFilePath = Join-Path $outputDir "verbose.log"
+$diffLogFilePath    = Join-Path $outputDir "diff.log"
+################# END CONFIG ###################
 
+# Ensure output/log directory exists
 if (-not (Test-Path $outputDir)) {
-	New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
-}
-$outputPath = Join-Path $outputDir "results_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv"
-
-Write-Host "CSV will be saved to: $outputPath"
-
-# Correct ADB path for your environment
-$adbPath = "C:\Users\Public\Documents\Perspectus\platform-tools\adb.exe"
-
-# Clear the screen for better readability
-Clear-Host
-
-Write-Host "==============================================="
-Write-Host "Meta Quest 3 Serial Number Collection Script"
-Write-Host "===============================================`n"
-
-Write-Host "Running with Administrator privileges...`n"
-Write-Host "Using ADB path: $adbPath`n"
-
-# Check if computer list exists
-if (-not (Test-Path $computerListPath)) {
-	Write-Error "Computer list not found at: $computerListPath"
-	Write-Host "`nPress Enter to exit..."
-	Read-Host
-	exit 1
+    New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 }
 
-# Read computer list
-$computers = Get-Content $computerListPath | Where-Object { $_.Trim() -ne "" }
-Write-Host "Found $($computers.Count) computers in list.`n"
+# Unified verbose logger
+function Log {
+    param(
+        [string]$Message,
+        [ValidateSet("Info","Warn","Error")]
+        [string]$Level = "Info"
+    )
 
-# Test PowerShell remoting
-Write-Host "Testing PowerShell remoting..."
-try {
-	$testResult = Test-WSMan -ErrorAction Stop
-	Write-Host "PowerShell remoting is enabled.`n"
-} catch {
-	Write-Host "Attempting to enable PowerShell remoting..."
-	try {
-		Enable-PSRemoting -Force -ErrorAction Stop
-		Write-Host "Successfully enabled PowerShell remoting.`n"
-	} catch {
-		Write-Error "Failed to enable PowerShell remoting. Error: $($_.Exception.Message)"
-		Write-Host "`nPress Enter to exit..."
-		Read-Host
-		exit 1
-	}
+    $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    $line = "[$timestamp] [$Level] $Message"
+
+    switch ($Level) {
+        "Info"  { Write-Host    $line }
+        "Warn"  { Write-Warning $line }
+        "Error" { Write-Error   $line }
+    }
+
+    $line | Out-File -FilePath $verboseLogFilePath -Append -Encoding UTF8
 }
 
-$global:pcList = @()
-Write-Host "Initialized empty device list"
-
-# Function to run ADB command remotely and get device info
-function Get-RemoteDeviceInfo {
-	param (
-		[string]$ComputerName
-	)
-
-	Write-Host "Connecting to $ComputerName..."
-	
-	try {
-		# Test if computer is online
-		if (-not (Test-Connection -ComputerName $ComputerName -Count 1 -Quiet)) {
-			Write-Warning "$ComputerName is not responding to ping"
-			
-			$global:pcList += [PSCustomObject]@{
-				ComputerName = $ComputerName
-				UUID = "PC not found."
-			}
-			return
-		}
-
-		# Test WMI connection
-		try {
-			$null = Get-WmiObject -Class Win32_ComputerSystem -ComputerName $ComputerName -ErrorAction Stop
-		} catch {
-			Write-Warning "$ComputerName - WMI access failed: $($_.Exception.Message)"
-			$global:pcList += [PSCustomObject]@{
-				ComputerName = $ComputerName
-				UUID = "WMI access failed."
-			}
-			return
-		}
-
-		$result = Invoke-Command -ComputerName $ComputerName -ScriptBlock {
-			param($adbPath)
-			
-			# Get Computer UUID first, regardless of device presence
-			Write-Host "Getting Computer UUID..."
-			$computerUUID = (Get-WmiObject -Class Win32_ComputerSystemProduct).UUID
-			Write-Host "Computer UUID: $computerUUID"
-			
-			# Get Meta Quest Link Version using WMI
-			Write-Host "Getting Meta Quest Link Version..."
-			$filePath = "C:\Program Files\Oculus\Support\oculus-runtime\OVRServer_x64.exe"
-			try {
-				$file = Get-WmiObject CIM_DataFile -Filter "Name='$($filePath.Replace('\','\\'))'"
-				if ($file) {
-					$questLinkVersion = $file.Version
-					Write-Host "Found Oculus version: $questLinkVersion"
-				} else {
-					$questLinkVersion = "Not Found"
-					Write-Host "OVRServer_x64.exe not found"
-				}
-			} catch {
-				$questLinkVersion = "Error Reading Version"
-				Write-Host "Error getting version info: $($_.Exception.Message)"
-			}
-			
-			Write-Host "Checking ADB on $env:COMPUTERNAME..."
-			
-			# Verify ADB exists
-			if (-not (Test-Path $adbPath)) {
-				Write-Warning "ADB not found at specified path: $adbPath"
-				Write-Host "Directory contents:"
-				Get-ChildItem (Split-Path $adbPath) -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "- $_" }
-				# Create base device info with just computer name and UUID
-				$deviceInfo = @()
-				$deviceInfo += @{
-					ComputerName = $env:COMPUTERNAME
-					UUID = $computerUUID
-					ModelNumber = "ADB not found."
-				}
-					return $deviceInfo
-			}
-			
-			Write-Host "ADB found. Testing connection..."
-			
-			try {
-				# Test ADB
-				$adbTest = & $adbPath version 2>&1
-				Write-Host "ADB version output: $adbTest"
-				
-				# Get list of devices
-				Write-Host "Getting device list..."
-				$devices = & $adbPath devices 2>&1
-				Write-Host "ADB devices output: $devices"
-				
-				$deviceInfo = @()
-				$deviceFound = $false
-				
-				foreach ($line in $devices) {
-					if ($line -match '^(\S+)\s+device') {
-						$deviceFound = $true
-						$serialNumber = $matches[1]
-						Write-Host "Found device: $serialNumber"
-						
-						# Get device status
-						$status = & $adbPath -s $serialNumber get-state 2>&1
-						Write-Host "Device status: $status"
-						
-						# Get product name
-						$productName = & $adbPath -s $serialNumber shell getprop ro.product.name 2>&1
-						Write-Host "Product name: $productName"
-						
-						# Get model number
-						$modelNumber = & $adbPath -s $serialNumber shell getprop ro.product.model 2>&1
-						Write-Host "Model number: $modelNumber"
-						
-						# Get Meta OS Version
-						Write-Host "Getting Meta OS Version..."
-						$metaOS = & $adbPath -s $serialNumber shell "getprop ro.vros.build.version" 2>&1
-						$metaOS = if ($metaOS -is [string]) { $metaOS.Trim() } else { "Unknown" }
-						Write-Host "Meta OS Version: $metaOS"
-						
-						# Get MAC address from wlan0 interface
-						Write-Host "Getting MAC address..."
-						$macAddress = & $adbPath -s $serialNumber shell "ip addr show wlan0" 2>&1
-						$macMatch = $macAddress | Select-String -Pattern "link/ether ([0-9a-f:]{17})" -AllMatches
-						$macAddress = if ($macMatch.Matches.Count -gt 0) { $macMatch.Matches[0].Groups[1].Value } else { "Unknown" }
-						Write-Host "MAC Address: $macAddress"
-						
-						# Get the Wifi metrics information
-						$wifiMetrics = & $adbPath -s $serialNumber shell "dumpsys wifi" | findstr /C:"useRandomizedMac"
-
-						# Initialize the variable to hold the last useRandomizedMac status
-						$lastUseRandomizedMac = $null
-
-						# Split the wifiMetrics output into lines and get the last useRandomizedMac value
-						$wifiMetricsLines = $wifiMetrics -split "`n"
-						foreach ($line in $wifiMetricsLines) {
-							if ($line -match "useRandomizedMac") {
-								$lastUseRandomizedMac = if ($line -match "useRandomizedMac=true") { $true } else { $false }
-							}
-						}
-
-						# Output the result
-						if ($lastUseRandomizedMac -ne $null) {
-							Write-Host "The last connection event used randomized MAC: $lastUseRandomizedMac"
-						} else {
-							Write-Host "No connection events found or unable to determine MAC usage."
-						}
-
-
-						# Get the Wi-Fi information
-						$wifiInfo = & $adbPath -s $serialNumber shell "dumpsys wifi"
-
-						# Extract the SSID
-						$ssidMatch = $wifiInfo | Select-String -Pattern 'mWifiInfo SSID: "([^"]+)"'
-						Write-Host "SSIDMatch: $ssidMatch"
-						
-						$ssid = if ($ssidMatch -and $ssidMatch.Matches.Count -gt 0) { $ssidMatch.Matches[0].Groups[1].Value } else { "Unknown" }
-
-						# Extract the Supplicant state
-						$supplicantStateMatch = $wifiInfo | Select-String -Pattern 'Supplicant state: (\w+)'
-						$supplicantState = if ($supplicantStateMatch -and $supplicantStateMatch.Matches.Count -gt 0) { $supplicantStateMatch.Matches[0].Groups[1].Value } else { "Unknown" }
-
-						# Output the SSID and Supplicant state
-						Write-Host "SSID: $ssid"
-						Write-Host "Supplicant State: $supplicantState"
-						
-						$networkInfo = & $adbPath shell "dumpsys connectivity"
-						$captivePortalExists = if ($networkInfo -match "CAPTIVE_PORTAL") { $true } else { $false }
-						Write-Host "CAPTIVE_PORTAL exists: $captivePortalExists"
-						
-						$deviceInfo += @{
-							ComputerName = $env:COMPUTERNAME
-							UUID = $computerUUID
-							QuestLinkVersion = $questLinkVersion
-							ModelNumber = if ($modelNumber) { $modelNumber.Trim() } else { "Unknown" }
-							SerialNumber = $serialNumber
-							MetaOS = $metaOS
-							MACAddress = $macAddress
-							randomized = $lastUseRandomizedMac
-							SSID = $ssid
-							WiFiState = $supplicantState
-							captivePortal = $captivePortalExists
-						}
-					}
-				}
-				
-				# Only add computer with empty device info if no devices were found
-				if (-not $deviceFound) {
-					Write-Host "No devices found, adding computer info only"
-					$deviceInfo += @{
-						ComputerName = $env:COMPUTERNAME
-						UUID = $computerUUID
-						QuestLinkVersion = $questLinkVersion
-						ModelNumber = "Device not found."
-					}
-				}
-				
-				return $deviceInfo
-			}
-			catch {
-				Write-Warning "Error running ADB commands: $($_.Exception.Message)"
-				return $null
-			}
-		} -ArgumentList $adbPath -ErrorAction Stop
-
-		if ($result) {
-			if ($result.Count -gt 0) {
-				Write-Host "Processing $($result.Count) records from $ComputerName"
-				foreach ($device in $result) {
-					Write-Host "Adding record for $($device.ComputerName) to list"
-					$global:pcList += [PSCustomObject]@{
-						ComputerName = $device.ComputerName
-						UUID = $device.UUID
-						QuestLinkVersion = $device.QuestLinkVersion
-						Model = $device.ModelNumber
-						Serial = $device.SerialNumber
-						MetaOS = $device.MetaOS
-						MACAddress = $device.MACAddress
-						randomized = $device.randomized
-						SSID = $device.SSID
-						WiFiState = $device.WiFiState
-						captivePortal = $device.captivePortal
-					}
-				}
-				Write-Host "Successfully processed $ComputerName"
-				Write-Host "Total records in list: $($global:pcList.Count)"
-			} else {
-				Write-Host "No records found on $ComputerName"
-				$global:pcList += [PSCustomObject]@{
-					ComputerName = $ComputerName
-					UUID = "PC not found."
-				}
-			}
-		} else {
-			Write-Host "No results returned from $ComputerName"
-			$global:pcList += [PSCustomObject]@{
-				ComputerName = $ComputerName
-				UUID = "PC not found."
-			}
-		}
-	}
-	catch {
-		Write-Warning "Failed to connect to $ComputerName - $($_.Exception.Message)"
-		Write-Host "Detailed error: $($_.Exception.Message)" -ForegroundColor Red
-		$global:pcList += [PSCustomObject]@{
-			ComputerName = $ComputerName
-			UUID = "PC not found."
-		}
-	}
+# Diff-only logger
+function Write-Diff {
+    param([string]$Message)
+    $Message | Out-File -FilePath $diffLogFilePath -Append -Encoding UTF8
 }
 
-# Process each computer
-Write-Host "`nStarting device scan across all computers...`n"
-foreach ($computer in $computers) {
-	Get-RemoteDeviceInfo -ComputerName $computer.Trim()
-	Write-Host "" # Add a blank line between computers
+# Self-elevate if needed
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
+    ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+
+    Log "Elevation required. Relaunching as admin..."
+    Start-Process PowerShell.exe -Verb RunAs -ArgumentList "-File `"$PSCommandPath`""
+    exit
 }
 
-# Export to CSV
-Write-Host "`nAttempting to export data..."
-Write-Host "Output directory: $outputDir"
-Write-Host "Full output path: $outputPath"
-
-# Verify output directory exists and is writable
-try {
-	if (-not (Test-Path $outputDir)) {
-		Write-Host "Creating output directory..."
-		New-Item -ItemType Directory -Path $outputDir -Force -ErrorAction Stop | Out-Null
-		Write-Host "Directory created successfully"
-	}
-	
-	# Test write access
-	Write-Host "Testing write access to directory..."
-	$testFile = Join-Path $outputDir "test.txt"
-	"test" | Out-File -FilePath $testFile -ErrorAction Stop
-	Remove-Item $testFile -ErrorAction SilentlyContinue
-	Write-Host "Directory is writable"
-} catch {
-	Write-Warning "Failed to access or write to output directory: $($_.Exception.Message)"
-	Write-Host "Attempting to use script directory instead..."
-	$outputPath = Join-Path $PSScriptRoot "quest_serials_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv"
-	Write-Host "New output path: $outputPath"
-}
-
-if ($pcList.Count -gt 0) {
-	try {
-		Write-Host "`nWriting data to CSV..."
-		$pcList | Export-Csv -Path $outputPath -NoTypeInformation -ErrorAction Stop
-		Write-Host "Successfully exported $($pcList.Count) devices to: $outputPath"
-		
-		# Verify file was created
-		if (Test-Path $outputPath) {
-			Write-Host "Verified: CSV file exists at specified location"
-			Write-Host "File size: $((Get-Item $outputPath).Length) bytes"
-		} else {
-			Write-Warning "Warning: CSV file was not found after export"
-		}
-	} catch {
-		Write-Warning "Failed to export CSV: $($_.Exception.Message)"
-		
-		# Try alternative location
-		try {
-			$altPath = Join-Path $env:USERPROFILE "Desktop\quest_serials_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv"
-			Write-Host "Attempting to save to desktop instead: $altPath"
-			$pcList | Export-Csv -Path $altPath -NoTypeInformation -ErrorAction Stop
-			Write-Host "Successfully saved to desktop: $altPath"
-			$outputPath = $altPath
-		} catch {
-			Write-Error "Failed to save to alternative location: $($_.Exception.Message)"
-		}
-	}
+# If double-clicked, keep window open
+if ($Host.Name -ne "ConsoleHost") {
+    # Running under Task Scheduler or non-interactive host
+    $NoExit = $false
 } else {
-	Write-Warning "No devices found on any computers. No CSV will be created."
-}
-
-# Display the contents that would be in the CSV
-Write-Host "`nData that should be in the CSV:"
-$pcList | Format-Table -AutoSize
-
-# Display results in console
-Write-Host "`nDevice Summary:"
-$pcList | Format-Table -AutoSize
-
-Write-Host "`nScript completed! Results have been saved to: $outputPath"
-
-
-
-Write-Output "First task completed."
- 
-
- Write-Output "Second task running..." 
- 
-
-# Get the two most recent CSV files starting with 'ping_results'
-$csvFiles = Get-ChildItem -Path $outputDir -Filter "results*.csv" | Sort-Object LastWriteTime -Descending | Select-Object -First 2
-
-# Ensure there are at least two CSV files
-if ($csvFiles.Count -lt 2) {
-	Write-Output "Less than two 'ping_results' CSV files found in the directory."
-	return
-}
-
-# Import the content of the two most recent CSV files
-$file1 = Import-Csv $csvFiles[0].FullName
-$file2 = Import-Csv $csvFiles[1].FullName
-
-# Get the current date and time
-$currentDateTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-
-# Compare rows where ComputerName matches and ignore the ScanTime column
-$comparison = foreach ($row1 in $file1) {
-    $row2 = $file2 | Where-Object { $_.ComputerName -eq $row1.ComputerName }
-    if ($row2) {
-        $changesFound = $false
-        $changes = foreach ($property in $row1.PSObject.Properties.Name) {
-            if ($property -ne 'ComputerName' -and $row1.$property -ne $row2.$property -and $row1.$property -ne '' -and $row2.$property -ne '') {
-                $changesFound = $true
-                [PSCustomObject]@{
-                    'ComputerName' = $row1.ComputerName
-                    'Property' = $property
-                    'prev Value' = $row2.$property
-                    'curr Value' = $row1.$property
-                }
-            }
-        }
-        if ($changesFound) {
-            $changes
-        }
+    # Running interactively (double-click or console)
+    if ($MyInvocation.Line -eq "") {
+        $NoExit = $true
     }
 }
 
-$currentDateTime = Get-Date
+Clear-Host
+Log "==============================================="
+Log "XR Headset Diagnostics and Telemetry Collector"
+Log "==============================================="
+Log "Running with Administrator privileges..."
+Log "Using ADB path: $adbPath"
 
-# Prepare the log entries
-if ($comparison) {
-    $logEntries = $comparison | Format-Table -AutoSize | Out-String
-
-    # Append the log entries to the log file
-	Add-Content -Path $diffLogFilePath -Value "Changes found $($currentDateTime):"
-    Add-Content -Path $diffLogFilePath -Value $logEntries
-} else {
-    Add-Content -Path $diffLogFilePath -Value "No changes found $($currentDateTime).`r`n"
+# Validate computer list
+if (-not (Test-Path $computerListPath)) {
+    Log "Computer list NOT found at: $computerListPath" -Level Error
+    if ($NoExit) { Read-Host "Press Enter to exit..." }
+    exit 1
 }
 
-# Output the differences
-if ($comparison) {
-	Write-Output "Changes found $($currentDateTime):"
-    $comparison | Format-Table -AutoSize
-} else {
-    Write-Output "No changes found $($currentDateTime)"
+Log "Computer list file FOUND at: $computerListPath"
+
+# Read list
+$computers = Get-Content $computerListPath | Where-Object { $_.Trim() -ne "" }
+Log "Found $($computers.Count) computers in list."
+
+# Test remoting
+Log "Testing PowerShell remoting..."
+try {
+    Test-WSMan -ErrorAction Stop | Out-Null
+    Log "PowerShell remoting is enabled."
+} catch {
+    Log "Attempting to enable PowerShell remoting..." -Level Warn
+    try {
+        Enable-PSRemoting -Force -ErrorAction Stop
+        Log "Successfully enabled PowerShell remoting."
+    } catch {
+        Log "Failed to enable PowerShell remoting: $($_.Exception.Message)" -Level Error
+        if ($NoExit) { Read-Host "Press Enter to exit..." }
+        exit 1
+    }
 }
 
-#Write-Host -NoNewLine 'Press any key to continue...';
-#$null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
+# Global results list
+$global:pcList = @()
+Log "Initialized empty device list."
+
+# Helper for unreachable PCs
+function Add-PCNotFound {
+    param([string]$ComputerName)
+    $global:pcList += [PSCustomObject]@{
+        ComputerName    = $ComputerName
+        UUID            = "PC not found."
+        RuntimeVersion  = ""
+        DeviceModel     = ""
+        DeviceSerial    = ""
+        DeviceOSVersion = ""
+        WiFiMAC         = ""
+        RandomizedMAC   = ""
+        WiFiState       = ""
+        SSID            = ""
+        CaptivePortal   = ""
+    }
+}
+
+# Remote ADB + telemetry collector
+function Get-RemoteDeviceInfo {
+    param ([string]$ComputerName)
+
+    Log "Connecting to $ComputerName..."
+
+    try {
+        # Ping test
+        if (-not (Test-Connection -ComputerName $ComputerName -Count 1 -Quiet)) {
+            Log "$ComputerName is not responding to ping." -Level Warn
+            Add-PCNotFound $ComputerName
+            return
+        }
+
+        # WMI test
+        try {
+            Get-WmiObject -Class Win32_ComputerSystem -ComputerName $ComputerName -ErrorAction Stop | Out-Null
+        } catch {
+            Log "$ComputerName - WMI access failed: $($_.Exception.Message)" -Level Warn
+            Add-PCNotFound $ComputerName
+            return
+        }
+
+        # Remote scriptblock
+        $result = Invoke-Command -ComputerName $ComputerName -ScriptBlock {
+            param($adbPath)
+
+            $deviceInfo = @()
+
+            # PC UUID
+            $computerUUID = (Get-WmiObject -Class Win32_ComputerSystemProduct).UUID
+
+            # XR runtime detection
+            $runtimeCandidates = @(
+                "C:\Program Files\Oculus\Support\oculus-runtime\OVRServer_x64.exe",
+                "C:\Program Files\Pico Streaming Assistant\StreamingAssistant.exe",
+                "C:\Program Files\SamsungXR\Runtime\SamsungXRRuntime.exe"
+            )
+
+            $RuntimeVersion = "Not Found"
+            foreach ($path in $runtimeCandidates) {
+                try {
+                    $file = Get-WmiObject CIM_DataFile -Filter "Name='$($path.Replace('\','\\'))'"
+                    if ($file) {
+                        $RuntimeVersion = $file.Version
+                        break
+                    }
+                } catch {}
+            }
+
+            # ADB check
+            if (-not (Test-Path $adbPath)) {
+                $deviceInfo += @{
+                    ComputerName    = $env:COMPUTERNAME
+                    UUID            = $computerUUID
+                    RuntimeVersion  = $RuntimeVersion
+                    DeviceModel     = "ADB not found."
+                    DeviceSerial    = ""
+                    DeviceOSVersion = ""
+                    WiFiMAC         = ""
+                    RandomizedMAC   = ""
+                    WiFiState       = ""
+                    SSID            = ""
+                    CaptivePortal   = ""
+                }
+                return $deviceInfo
+            }
+
+            # Device list
+            $devices = & $adbPath devices 2>&1
+            $deviceFound = $false
+
+            foreach ($line in $devices) {
+                if ($line -match '^(\S+)\s+device') {
+                    $deviceFound = $true
+                    $serial = $matches[1]
+
+                    function ADBShell { param($S,$Cmd) & $adbPath -s $S shell $Cmd 2>&1 }
+
+                    # Model
+                    $model = (ADBShell $serial "getprop ro.product.model").Trim()
+
+                    # OS version (fallback across vendors)
+                    $osProps = @(
+                        "ro.vros.build.version",        # Meta
+                        "ro.build.version.release",     # Pico / Android
+                        "ro.system.build.version"       # fallback
+                    )
+
+                    $DeviceOSVersion = "Unknown"
+                    foreach ($prop in $osProps) {
+                        $val = ADBShell $serial "getprop $prop"
+                        if ($val -and $val.Trim() -ne "") {
+                            $DeviceOSVersion = $val.Trim()
+                            break
+                        }
+                    }
+
+                    # MAC
+                    $macOutput = ADBShell $serial "ip addr show wlan0"
+                    $macMatch  = $macOutput | Select-String -Pattern "link/ether ([0-9a-f:]{17})"
+                    $WiFiMAC   = if ($macMatch) { $macMatch.Matches[0].Groups[1].Value } else { "Unknown" }
+
+                    # Randomized MAC
+                    #$wifiMetrics = ADBShell $serial "dumpsys wifi" | findstr /C:"useRandomizedMac"
+                    #$RandomizedMAC = $null
+                    #foreach ($wm in ($wifiMetrics -split "`n")) {
+                    #    if ($wm -match "useRandomizedMac") {
+                    #        $RandomizedMAC = ($wm -match "useRandomizedMac=true")
+                    #    }
+                    #}
+					
+					# Factory MAC (burned-in hardware MAC)
+					$factoryMac = (ADBShell $serial "getprop ro.boot.wifimacaddr").Trim()
+
+					# Determine if randomized MAC is active
+					if ($factoryMac -and $WiFiMAC -and ($factoryMac -ne $WiFiMAC)) {
+						$RandomizedMAC = $true
+					} else {
+						$RandomizedMAC = $false
+					}
+
+                    # SSID + state
+                    $wifiInfo = ADBShell $serial "dumpsys wifi"
+                    $ssidMatch = $wifiInfo | Select-String -Pattern 'mWifiInfo SSID: "([^"]+)"'
+                    $SSID = if ($ssidMatch) { $ssidMatch.Matches[0].Groups[1].Value } else { "Unknown" }
+
+                    $stateMatch = $wifiInfo | Select-String -Pattern 'Supplicant state: (\w+)'
+                    $WiFiState = if ($stateMatch) { $stateMatch.Matches[0].Groups[1].Value } else { "Unknown" }
+
+                    # Captive portal
+                    #$netInfo = ADBShell $serial "dumpsys connectivity"
+                    #$CaptivePortal = ($netInfo -match "CAPTIVE_PORTAL")
+					# Captive portal detection
+					$netInfo = ADBShell $serial "dumpsys connectivity" | Out-String
+					$CaptivePortal = ($netInfo -match "CAPTIVE_PORTAL")
+
+                    # Add record
+                    $deviceInfo += @{
+                        ComputerName    = $env:COMPUTERNAME
+                        UUID            = $computerUUID
+                        RuntimeVersion  = $RuntimeVersion
+                        DeviceModel     = $model
+                        DeviceSerial    = $serial
+                        DeviceOSVersion = $DeviceOSVersion
+                        WiFiMAC         = $WiFiMAC
+                        RandomizedMAC   = $RandomizedMAC
+                        WiFiState       = $WiFiState
+                        SSID            = $SSID
+                        CaptivePortal   = $CaptivePortal
+                    }
+                }
+            }
+
+            if (-not $deviceFound) {
+                $deviceInfo += @{
+                    ComputerName    = $env:COMPUTERNAME
+                    UUID            = $computerUUID
+                    RuntimeVersion  = $RuntimeVersion
+                    DeviceModel     = "Device not found."
+                    DeviceSerial    = ""
+                    DeviceOSVersion = ""
+                    WiFiMAC         = ""
+                    RandomizedMAC   = ""
+                    WiFiState       = ""
+                    SSID            = ""
+                    CaptivePortal   = ""
+                }
+            }
+
+            return $deviceInfo
+        } -ArgumentList $adbPath -ErrorAction Stop
+
+        if ($result) {
+            foreach ($d in $result) {
+                # Enforce strict column order
+                $global:pcList += [PSCustomObject]@{
+                    ComputerName    = $d.ComputerName
+                    UUID            = $d.UUID
+                    RuntimeVersion  = $d.RuntimeVersion
+                    DeviceModel     = $d.DeviceModel
+                    DeviceSerial    = $d.DeviceSerial
+                    DeviceOSVersion = $d.DeviceOSVersion
+                    WiFiMAC         = $d.WiFiMAC
+                    RandomizedMAC   = $d.RandomizedMAC
+                    WiFiState       = $d.WiFiState
+                    SSID            = $d.SSID
+                    CaptivePortal   = $d.CaptivePortal
+                }
+            }
+            Log "Processed $ComputerName. Total records: $($global:pcList.Count)"
+        } else {
+            Log "No results returned from $ComputerName" -Level Warn
+            Add-PCNotFound $ComputerName
+        }
+    }
+    catch {
+        Log "Failed to connect to $ComputerName - $($_.Exception.Message)" -Level Warn
+        Add-PCNotFound $ComputerName
+    }
+}
+
+# Begin scan
+Log "Starting device scan across all computers..."
+foreach ($c in $computers) {
+    Get-RemoteDeviceInfo -ComputerName $c.Trim()
+}
+
+# Prepare CSV output
+$outputPath = Join-Path $outputDir "results_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv"
+Log "CSV will be saved to: $outputPath"
+
+# Test write access
+try {
+    $testFile = Join-Path $outputDir "write_test.tmp"
+    "test" | Out-File -FilePath $testFile -ErrorAction Stop
+    Remove-Item $testFile -Force
+    Log "Output directory is writable."
+} catch {
+    Log "Output directory not writable. Falling back to script directory." -Level Warn
+    $outputPath = Join-Path $PSScriptRoot "results_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv"
+}
+
+# Export CSV
+if ($pcList.Count -gt 0) {
+    try {
+        $pcList | Export-Csv -Path $outputPath -NoTypeInformation -ErrorAction Stop
+        Log "Successfully exported $($pcList.Count) records to: $outputPath"
+    } catch {
+        Log "Failed to export CSV: $($_.Exception.Message)" -Level Error
+    }
+} else {
+    Log "No devices found on any computers. No CSV created." -Level Warn
+}
+
+# Diff last two results
+Log "Running diff on last two results files..."
+
+# Clear diff.log for this run
+Clear-Content -Path $diffLogFilePath -ErrorAction SilentlyContinue
+
+$csvFiles = Get-ChildItem -Path $outputDir -Filter "results*.csv" |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 2
+
+if ($csvFiles.Count -lt 2) {
+    Write-Diff "No previous results available for comparison."
+    Log "Less than two results files found. Skipping diff."
+} else {
+    $file1 = Import-Csv $csvFiles[0].FullName
+    $file2 = Import-Csv $csvFiles[1].FullName
+
+    $comparison =
+        foreach ($row1 in $file1) {
+            $row2 = $file2 | Where-Object ComputerName -eq $row1.ComputerName
+            if ($row2) {
+                foreach ($prop in $row1.PSObject.Properties.Name) {
+                    if ($prop -ne "ComputerName" -and
+                        $row1.$prop -ne $row2.$prop -and
+                        $row1.$prop -ne '' -and
+                        $row2.$prop -ne '') {
+
+                        [PSCustomObject]@{
+                            ComputerName = $row1.ComputerName
+                            Property     = $prop
+                            'Prev Value' = $row2.$prop
+                            'Curr Value' = $row1.$prop
+                        }
+                    }
+                }
+            }
+        }
+
+	# Append a separator for readability
+	Write-Diff ""
+	Write-Diff "------------------------------------------------------------"
+	Write-Diff ""
+
+	$timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+
+	if ($comparison) {
+		Write-Diff "[$timestamp] Changes detected between the last two scans:"
+		Write-Diff ""
+
+		foreach ($change in $comparison) {
+			$line = "$($change.ComputerName): $($change.Property) changed from '$($change.'Prev Value')' to '$($change.'Curr Value')'"
+			Write-Diff $line
+		}
+
+		Log "Diff written to diff.log"
+	} else {
+		Write-Diff "[$timestamp] No changes detected between the last two scans."
+		Log "No changes detected"
+	}
+}
+
+Log "Script completed! Results saved to: $outputPath"
+
+# Close all remoting sessions
+Get-PSSession | Remove-PSSession -ErrorAction SilentlyContinue
+
+# Kill any leftover adb processes
+Get-Process adb -ErrorAction SilentlyContinue | Stop-Process -Force
+
+# Flush formatting/pipeline engines
+$Host.Runspace.ResetRunspaceState()
+[System.GC]::Collect()
+[System.GC]::WaitForPendingFinalizers()
+
+# If running under Task Scheduler (non-interactive), exit immediately
+try {
+    if (-not $Host.UI.RawUI.KeyAvailable) {
+        exit
+    }
+} catch {
+    # RawUI may not exist in non-interactive hosts → also exit
+    exit
+}
+
+# Interactive pause
+if ($NoExit) {
+    Read-Host "Press Enter to exit..."
+}
