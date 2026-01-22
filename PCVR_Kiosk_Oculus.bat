@@ -7,6 +7,7 @@ REM This script is licensed under the GNU General Public License v3.0 (GPL-3.0)
 REM See LICENSE file in the repository or https://www.gnu.org/licenses/gpl-3.0.html
 
 REM Change Log:
+REM - 2026-01-22 CE: Removed legacy support for 'OculusClient.exe' (now 'Client.exe')
 REM - 2026-01-16 CE: Added support for Meta Horizon install path (Client.exe) alongside legacy Oculus path.
 REM - 2025-12-08 CE: Added conditional check for Client.exe vs OculusClient.exe
 REM - 2025-12-08 CE: Fixed issue where Meta renamed OculusClient.exe to Client.exe, causing kiosk script to enter a loop
@@ -42,17 +43,7 @@ SET "appPath=shell:appsfolder\Perspectus.VR.edu.release_5r2c0dmngbwzj!Perspectus
 REM Check for Meta Link / Oculus PC app across all known install paths
 
 REM New Meta Horizon path (2025+)
-IF EXIST "C:\Program Files\Meta Horizon\Support\oculus-client\Client.exe" (
-    SET "metaLinkExe=Client.exe"
-) ELSE (
-    REM Legacy Oculus path
-    IF EXIST "C:\Program Files\Oculus\Support\oculus-client\Client.exe" (
-        SET "metaLinkExe=Client.exe"
-    ) ELSE (
-        REM Fall back to older OculusClient.exe name
-        SET "metaLinkExe=OculusClient.exe"
-    )
-)
+SET "metaLinkExe=Client.exe"
 
 REM ****end of variables****
 
@@ -159,3 +150,4 @@ goto waitThenLoop
 timeout /t 5
 
 goto start
+
