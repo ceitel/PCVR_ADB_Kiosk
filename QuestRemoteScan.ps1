@@ -375,9 +375,6 @@ if ($pcList.Count -gt 0) {
 # Diff last two results
 Log "Running diff on last two results files..."
 
-# Clear diff.log for this run
-Clear-Content -Path $diffLogFilePath -ErrorAction SilentlyContinue
-
 $csvFiles = Get-ChildItem -Path $outputDir -Filter "results*.csv" |
             Sort-Object LastWriteTime -Descending | Select-Object -First 2
 
