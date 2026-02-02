@@ -58,27 +58,6 @@ function Write-Diff {
     $Message | Out-File -FilePath $diffLogFilePath -Append -Encoding UTF8
 }
 
-# Self-elevate if needed
-if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
-    ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-
-    Log "Elevation required. Relaunching as admin..."
-    Start-Process PowerShell.exe -Verb RunAs -ArgumentList "-File `"$PSCommandPath`""
-    exit
-}
-
-# If double-clicked, keep window open
-if ($Host.Name -ne "ConsoleHost") {
-    # Running under Task Scheduler or non-interactive host
-    $NoExit = $false
-} else {
-    # Running interactively (double-click or console)
-    if ($MyInvocation.Line -eq "") {
-        $NoExit = $true
-    }
-}
-
-Clear-Host
 Log "==============================================="
 Log "XR Headset Diagnostics and Telemetry Collector"
 Log "==============================================="
@@ -437,19 +416,14 @@ Get-PSSession | Remove-PSSession -ErrorAction SilentlyContinue
 # Kill any leftover adb processes
 Get-Process adb -ErrorAction SilentlyContinue | Stop-Process -Force
 
-# Flush formatting/pipeline engines
-$Host.Runspace.ResetRunspaceState()
-[System.GC]::Collect()
-[System.GC]::WaitForPendingFinalizers()
-
 # If running under Task Scheduler (non-interactive), exit immediately
 try {
     if (-not $Host.UI.RawUI.KeyAvailable) {
-        exit
+        exit 0
     }
 } catch {
     # RawUI may not exist in non-interactive hosts → also exit
-    exit
+    exit 0
 }
 
 # Interactive pause
