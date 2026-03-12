@@ -6,6 +6,7 @@ This package contains a suite of automation and diagnostic tools developed for l
 The toolkit streamlines:
 - Headset state management
 - PCVR app launching
+- Automatic updating of Meta PCVR drivers without UAC
 - Remote diagnostics
 - Telemetry collection
 - Network and OS drift detection
