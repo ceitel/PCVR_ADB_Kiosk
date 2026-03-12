@@ -28,6 +28,12 @@ License: GNU General Public License v3.0 (GPL-3.0)
 - PCVR_Kiosk_Oculus.xml  
   Task Scheduler import file for automated kiosk operation.
 
+- PCVR_Kiosk_Meta_DriverUpdate.ps1
+  Runs the Meta/Oculus driver installer in skip-if-installed mode.
+
+- PCVR_Kiosk_Meta_DriverUpdate.xml
+  Task Scheduler import file for running PCVR_Kiosk_Meta_DriverUpdate.ps1 at each logon.
+
 - PCVR_Kiosk_Pico.bat  
   Variant script for Pico 4E headsets. Integrates Pico Streaming Assistant and SteamVR checks.  
   (Note: Pico support is functional but not as fully validated as Quest.)
