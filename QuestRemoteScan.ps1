@@ -166,12 +166,23 @@ function Get-RemoteDeviceInfo {
                 } catch {}
             }
 
+			# Oculus DriverVersion (if installed)
+			$regPath = "HKLM:\SOFTWARE\WOW6432Node\Oculus VR, LLC\Oculus"
+			try {
+			    $currentVersion = (Get-ItemProperty -Path $regPath -Name "DriverVersion" -ErrorAction SilentlyContinue).DriverVersion
+			} catch {
+			    $currentVersion = "Not Found"
+			}
+			$OculusDriverVersion = if ($currentVersion) { $currentVersion } else { "Not Found" }
+
+
             # ADB check
             if (-not (Test-Path $adbPath)) {
                 $deviceInfo += @{
                     ComputerName    = $env:COMPUTERNAME
                     UUID            = $computerUUID
                     RuntimeVersion  = $RuntimeVersion
+					OculusDriver = $OculusDriverVersion
                     DeviceModel     = "ADB not found."
                     DeviceSerial    = ""
                     DeviceOSVersion = ""
@@ -258,6 +269,7 @@ function Get-RemoteDeviceInfo {
                         ComputerName    = $env:COMPUTERNAME
                         UUID            = $computerUUID
                         RuntimeVersion  = $RuntimeVersion
+						OculusDriver    = $OculusDriverVersion
                         DeviceModel     = $model
                         DeviceSerial    = $serial
                         DeviceOSVersion = $DeviceOSVersion
@@ -275,6 +287,7 @@ function Get-RemoteDeviceInfo {
                     ComputerName    = $env:COMPUTERNAME
                     UUID            = $computerUUID
                     RuntimeVersion  = $RuntimeVersion
+					OculusDriver    = $OculusDriverVersion
                     DeviceModel     = "Device not found."
                     DeviceSerial    = ""
                     DeviceOSVersion = ""
@@ -296,6 +309,7 @@ function Get-RemoteDeviceInfo {
                     ComputerName    = $d.ComputerName
                     UUID            = $d.UUID
                     RuntimeVersion  = $d.RuntimeVersion
+					OculusDriver    = $d.OculusDriverVersion
                     DeviceModel     = $d.DeviceModel
                     DeviceSerial    = $d.DeviceSerial
                     DeviceOSVersion = $d.DeviceOSVersion
