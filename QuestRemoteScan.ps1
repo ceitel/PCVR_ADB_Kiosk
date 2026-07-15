@@ -309,7 +309,7 @@ function Get-RemoteDeviceInfo {
                     ComputerName    = $d.ComputerName
                     UUID            = $d.UUID
                     RuntimeVersion  = $d.RuntimeVersion
-					OculusDriver    = $d.OculusDriverVersion
+					OculusDriver    = $d.OculusDriver
                     DeviceModel     = $d.DeviceModel
                     DeviceSerial    = $d.DeviceSerial
                     DeviceOSVersion = $d.DeviceOSVersion
