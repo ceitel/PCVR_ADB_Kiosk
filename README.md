@@ -29,15 +29,16 @@ License: GNU General Public License v3.0 (GPL-3.0)
 - PCVR_Kiosk_Oculus.xml  
   Task Scheduler import file for automated kiosk operation.
 
-- PCVR_Kiosk_Meta_DriverUpdate.ps1
-  Runs the Meta/Oculus driver installer in skip-if-installed mode.
-
-- PCVR_Kiosk_Meta_DriverUpdate.xml
-  Task Scheduler import file for running PCVR_Kiosk_Meta_DriverUpdate.ps1 at each logon.
-
 - PCVR_Kiosk_Pico.bat  
   Variant script for Pico 4E headsets. Integrates Pico Streaming Assistant and SteamVR checks.  
   (Note: Pico support is functional but not as fully validated as Quest.)
+
+## Automatic Oculus driver updates
+- Update-OculusDriver.ps1
+  powershell script that detects current and staged driver version, running oculus-driver.exe with target version when out of sync, detects reboot modal and reboots PC when present
+
+- Update-OculusDriver.xml
+  Task scheduler import file for running Update-OculusDriver.ps1 at logon of specific (vr) user
 
 ## XR Telemetry & Diagnostics
 - QuestRemoteScan.ps1  
@@ -61,9 +62,9 @@ https://developer.android.com/tools/releases/platform-tools
 Example path:  
 C:\platform-tools
 
-## 2. Copy Files
+## 2. Copy Files (for Meta Quest deployments)
 - Copy platform-tools to your preferred location  
-- Copy PCVR_Kiosk_*.bat and QuestRemoteScan.ps1 to a shared tools directory  
+- Copy PCVR_Kiosk_Oculus.bat, QuestRemoteScan.ps1, Update-OculusDriver.ps1, to a shared tools directory  
   (e.g., C:\Users\Public\Documents\Perspectus\)
 
 Update variables inside the .bat files:
@@ -81,8 +82,8 @@ Update variables inside the .bat files:
    - User Account  
    - Triggers (interval, user)  
    - Actions (path to .bat file)
-
 ---
+repeat for any other .xml tasks as desired
 
 # Oculus / Meta Authorization Notes
 
