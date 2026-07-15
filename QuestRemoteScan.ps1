@@ -150,6 +150,7 @@ function Get-RemoteDeviceInfo {
 
             # XR runtime detection
             $runtimeCandidates = @(
+				"C:\Program Files\Meta Horizon\Support\oculus-runtime\OVRServer_x64.exe",
                 "C:\Program Files\Oculus\Support\oculus-runtime\OVRServer_x64.exe",
                 "C:\Program Files\Pico Streaming Assistant\StreamingAssistant.exe",
                 "C:\Program Files\SamsungXR\Runtime\SamsungXRRuntime.exe"
