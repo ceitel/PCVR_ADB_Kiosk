@@ -1,5 +1,37 @@
 # Update-OculusDriver.ps1
 
+<#
+README — Oculus Driver Auto‑Update Script
+
+This script checks for and installs updated Oculus/Meta Horizon PC drivers
+at user logon. It is designed to run silently via Windows Task Scheduler.
+
+FUNCTIONAL OVERVIEW
+• Locates the installed Oculus/Meta Horizon driver root directory.
+• Reads the new driver version from version.txt.
+• Reads the currently installed driver version from the registry.
+• If versions match, the script exits with no action.
+• If a version change is detected, it launches oculus-driver.exe
+  interactively to perform the update.
+• After launching the installer, the script polls for the reboot prompt
+  (“Restart your computer?”). If detected, the machine is rebooted
+  automatically.
+• All activity is logged to:
+  C:\Users\Public\Documents\Logs\OculusDriverUpdate.log
+
+SCHEDULED TASK DETAILS
+A companion Scheduled Task (Update‑OculusDriver.xml) runs this script:
+• Trigger: At logon of user CVMBSDOM\azh205 (with a 3‑minute delay)
+• Principal: LocalSystem (S‑1‑5‑18), highest privileges
+• Action: powershell.exe -NoProfile -ExecutionPolicy Bypass -File <script>
+
+INTENDED USE
+Deploy this script + task to ensure Oculus/Meta Horizon drivers remain
+current across managed systems without requiring manual user intervention.
+
+#>
+
+
 $logDir = "C:\Users\Public\Documents\Logs"
 if (!(Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir | Out-Null }
 $logFile = Join-Path $logDir "OculusDriverUpdate.log"
