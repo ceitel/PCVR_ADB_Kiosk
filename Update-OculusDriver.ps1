@@ -83,28 +83,33 @@ $installer = Start-Process -FilePath $driverExe `
 
 Log "Installer PID: $($installer.Id)"
 
+Log "Waiting for reboot modal (up to ~120 seconds)..."
+
 $modalTitle = "Restart your computer?"
 $modalDetected = $false
 
-# Poll for the reboot modal
-for ($i = 1; $i -le 240; $i++) {  # ~120 seconds
-    $modal = Get-Process | Where-Object { $_.MainWindowTitle -eq $modalTitle }
+for ($i = 1; $i -le 240; $i++) {
 
+    $modal = Get-Process | Where-Object { $_.MainWindowTitle -eq $modalTitle }
     if ($modal) {
         Log "Detected reboot modal '$modalTitle' (PID $($modal.Id))."
-		Log "=== Oculus Driver Update Completed (rebooting...) ==="
-        Restart-Computer -Force
-        exit
+        $modalDetected = $true
+        break
     }
 
     if ($installer.HasExited) {
         Log "Installer exited normally. No reboot modal appeared."
-        Log "=== Oculus Driver Update Completed (no reboot) ==="
-        exit
+        break
     }
 
     Start-Sleep -Milliseconds 500
 }
 
-Log "Installer did not exit and no modal appeared. Doing nothing."
-Log "=== Oculus Driver Update Completed (no reboot) ==="
+Log "Running update-shortcuts before reboot..."
+Start-Process -FilePath $driverExe -ArgumentList "--mode update-shortcuts" -Wait
+Log "update-shortcuts completed."
+
+Log "Rebooting system now..."
+Log "=== Oculus Driver Update Completed (rebooting...) ==="
+Restart-Computer -Force
+exit
