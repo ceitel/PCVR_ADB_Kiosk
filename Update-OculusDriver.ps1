@@ -29,6 +29,9 @@ INTENDED USE
 Deploy this script + task to ensure Oculus/Meta Horizon drivers remain
 current across managed systems without requiring manual user intervention.
 
+This script is licensed under the GNU General Public License v3.0 (GPL-3.0)
+See LICENSE file in the repository or https://www.gnu.org/licenses/gpl-3.0.html
+
 #>
 
 
