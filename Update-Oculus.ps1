@@ -200,5 +200,8 @@ for ($i = 1; $i -le 240; $i++) {
     Start-Sleep -Milliseconds 500
 }
 
-Log "=== Oculus Driver Update Completed (no reboot) ==="
+Log "=== Oculus Driver Update Completed (rebooting...) ==="
+Restart-Computer -Force
+
+#Log "=== Oculus Driver Update Completed (no reboot) ==="
 exit
