@@ -180,6 +180,20 @@ for ($i = 1; $i -le 240; $i++) {
 
     if ($installer.HasExited) {
         Log "Installer exited normally. No reboot modal appeared."
+		
+		# Close stale UAC prompt (Consent.exe) now that installer is done
+		$consent = Get-Process -Name Consent -ErrorAction SilentlyContinue
+		if ($consent) {
+			Log "Detected stale UAC prompt (Consent.exe PID $($consent.Id)). Closing it now..."
+			try { $consent.CloseMainWindow() | Out-Null } catch {}
+			Start-Sleep -Milliseconds 3000
+
+			# If still alive, force kill
+			if (Get-Process -Id $consent.Id -ErrorAction SilentlyContinue) {
+				Log "Consent.exe still present; terminating forcefully..."
+				Stop-Process -Id $consent.Id -Force -ErrorAction SilentlyContinue
+			}
+		}
         break
     }
 
