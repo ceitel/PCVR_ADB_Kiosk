@@ -34,6 +34,9 @@ License: GNU General Public License v3.0 (GPL-3.0)
   (Note: Pico support is functional but not as fully validated as Quest.)
 
 ## Automatic Oculus driver updates
+- Update-Oculus.ps1
+  NEW (beta) powershell sctipt (will replace Update-OculusDriver.ps1), detects driver updates as well as typical meta horizon pc app updates and applies them when staged (this script is typically ran via task scheduler (see .xml below) shortly after login of the VR user, ideally triggered with nightly reboots)
+  
 - Update-OculusDriver.ps1
   powershell script that detects current and staged driver version, running oculus-driver.exe with target version when out of sync, detects reboot modal and reboots PC when present
 
