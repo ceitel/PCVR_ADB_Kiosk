@@ -7,6 +7,7 @@ REM This script is licensed under the GNU General Public License v3.0 (GPL-3.0)
 REM See LICENSE file in the repository or https://www.gnu.org/licenses/gpl-3.0.html
 
 REM Change Log:
+REM - 2026-08-27 CE: Removed killing streaming app from killApp (originally added on 11/20). Added delay after starting streaming app to prevent cycling. Removed unneeded delay before starting streaming app.
 REM - 2026-01-22 CE: Removed legacy support for 'OculusClient.exe' (now 'Client.exe')
 REM - 2026-01-16 CE: Added support for Meta Horizon install path (Client.exe) alongside legacy Oculus path.
 REM - 2025-12-08 CE: Added conditional check for Client.exe vs OculusClient.exe
@@ -93,9 +94,10 @@ IF %ERRORLEVEL% NEQ 0 (
     tasklist | find /I "%appExe%" >nul
     if errorlevel 1 (
         echo %appExe% is not running. 
-        echo Starting com.oculus.xrstreamingclient after delay...
-        timeout /t 5
+        echo Starting com.oculus.xrstreamingclient...
         %adbPath% shell am start -S com.oculus.xrstreamingclient/.MainActivity
+        echo Waiting for com.oculus.xrstreamingclient to start...
+        timeout /t 5
         goto waitThenLoop
     ) else (
         goto killApp
@@ -123,13 +125,6 @@ if errorlevel 1 (
 goto waitThenLoop
 
 :killApp
-%adbPath% shell pidof com.oculus.xrstreamingclient >nul
-IF %ERRORLEVEL% NEQ 0 (
-    echo com.oculus.xrstreamingclient is not running.
-) ELSE (
-    echo com.oculus.xrstreamingclient is running. Killing it now...
-    %adbPath% shell am force-stop com.oculus.xrstreamingclient
-)
 tasklist | find /I "%appExe%" >nul
 if not errorlevel 1 (
     echo %appExe% is running, closing it now...
